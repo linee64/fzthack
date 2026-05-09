@@ -116,6 +116,14 @@ function Dashboard() {
     toast.success(`Добро пожаловать, ${name}!`);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsClientLoggedIn(false);
+    setOnboarded(false);
+    setMode("business");
+    toast.success("Вы вышли из системы");
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="pointer-events-none fixed inset-0 -z-10 opacity-60">
@@ -128,6 +136,8 @@ function Dashboard() {
         setMode={setMode}
         showModeToggle={!onboarded && !isClientLoggedIn}
         isClientLoggedIn={isClientLoggedIn}
+        onboarded={onboarded}
+        onLogout={handleLogout}
       />
 
       <main className="mx-auto max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
@@ -259,16 +269,16 @@ function Header({
   setMode,
   showModeToggle,
   isClientLoggedIn,
+  onboarded,
+  onLogout,
 }: {
   mode: Mode;
   setMode: (m: Mode) => void;
   showModeToggle: boolean;
   isClientLoggedIn?: boolean;
+  onboarded?: boolean;
+  onLogout: () => void;
 }) {
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
@@ -286,11 +296,16 @@ function Header({
 
         <div className="flex items-center gap-4">
           {showModeToggle ? <ModeToggle mode={mode} setMode={setMode} /> : null}
-          {isClientLoggedIn && mode === "client" && (
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
+          {(isClientLoggedIn && mode === "client") || (onboarded && mode === "business") ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onLogout}
+              className="text-muted-foreground hover:text-foreground"
+            >
               Выйти
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </header>
@@ -553,18 +568,25 @@ function PushEditor({ businessName }: { businessName: string }) {
                   onChange={(e) => setModalText(e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Выбор цвета кнопки</Label>
-                <div className="flex flex-wrap gap-2">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Выбор цвета кнопки</Label>
+                <div className="flex flex-wrap gap-3">
                   {buttonColors.map((option) => (
-                    <Button
+                    <button
                       key={option.value}
-                      variant={buttonColor === option.value ? "default" : "outline"}
-                      className={`${buttonColor === option.value ? option.className : "text-muted-foreground"} rounded-full px-4 py-2 text-sm`}
+                      type="button"
                       onClick={() => setButtonColor(option.value)}
+                      className={`group relative flex h-10 w-10 items-center justify-center rounded-full transition-all active:scale-95 ${
+                        buttonColor === option.value
+                          ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                          : "hover:ring-1 hover:ring-border"
+                      }`}
                     >
-                      {option.label}
-                    </Button>
+                      <div className={`h-8 w-8 rounded-full shadow-sm ${option.className}`} />
+                      <span className="absolute -bottom-6 scale-0 text-[10px] font-medium text-muted-foreground transition-transform group-hover:scale-100">
+                        {option.label}
+                      </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -686,24 +708,42 @@ function PushEditor({ businessName }: { businessName: string }) {
                 </div>
               ) : (
                 <div className="mx-auto w-full max-w-[320px] rounded-[2.5rem] border border-border bg-background p-3 shadow-[var(--shadow-glow)]">
-                  <div className="rounded-[2rem] bg-card p-6 min-h-[400px] flex flex-col justify-between">
-                    <div>
-                      <div className="text-sm font-semibold">{modalTitle}</div>
-                      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  <div className="relative rounded-[2rem] bg-card p-6 min-h-[400px] flex flex-col items-center text-center">
+                    <div className="absolute top-4 right-4 text-muted-foreground/30">✕</div>
+                    <div className="mt-8 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <Star className="h-8 w-8 fill-primary/20" />
+                    </div>
+                    <div className="mt-6">
+                      <div className="text-lg font-bold tracking-tight">{modalTitle}</div>
+                      <p className="mt-3 text-sm leading-relaxed text-muted-foreground/80">
                         {modalText}
                       </p>
                     </div>
-                    <button
-                      className={`mt-6 rounded-full px-5 py-3 text-sm font-semibold uppercase tracking-[0.1em] transition ${
-                        buttonColor === "blue"
-                          ? "bg-blue-600 text-white"
-                          : buttonColor === "purple"
-                            ? "bg-purple-600 text-white"
-                            : "bg-emerald-600 text-white"
-                      }`}
-                    >
-                      Оставить отзыв
-                    </button>
+
+                    <div className="mt-8 flex gap-2">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <div
+                          key={s}
+                          className="h-8 w-8 rounded-lg border border-border bg-muted/20 flex items-center justify-center text-muted-foreground/40"
+                        >
+                          ★
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-auto w-full">
+                      <button
+                        className={`w-full rounded-2xl py-4 text-xs font-bold uppercase tracking-[0.2em] transition-all shadow-lg hover:brightness-110 active:scale-[0.98] ${
+                          buttonColor === "blue"
+                            ? "bg-blue-600 text-white shadow-blue-500/20"
+                            : buttonColor === "purple"
+                              ? "bg-purple-600 text-white shadow-purple-500/20"
+                              : "bg-emerald-600 text-white shadow-emerald-500/20"
+                        }`}
+                      >
+                        Оставить отзыв
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
