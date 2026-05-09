@@ -15,10 +15,17 @@ import {
   History,
   MapPin,
   Award,
+  Zap,
+  Plus,
+  Coins,
+  Check,
+  Save,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +37,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -1405,5 +1420,49 @@ function ClientProfile({ name }: { name: string }) {
         </Button>
       </CardContent>
     </Card>
+  );
+}
+function ClientPlaces({
+  places,
+}: {
+  places: { name: string; category: string; address: string; distance: string }[];
+}) {
+  const mockPlaces = [
+    { name: "Coffee Lab", category: "Кафе", address: "ул. Абая, 12", distance: "200 м" },
+    { name: "Barbershop K", category: "Красота", address: "пр. Достык, 45", distance: "450 м" },
+    { name: "Fitness Pride", category: "Спорт", address: "ул. Сатпаева, 8", distance: "1.2 км" },
+  ];
+
+  const displayPlaces = places.length > 0 ? places : mockPlaces;
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {displayPlaces.map((p, i) => (
+        <Card key={i} className="group overflow-hidden transition-all hover:shadow-lg">
+          <CardContent className="p-0">
+            <div className="h-32 bg-muted/30 relative flex items-center justify-center overflow-hidden">
+              <MapPin className="h-10 w-10 text-primary opacity-20 transition-transform group-hover:scale-110" />
+              <div className="absolute top-3 right-3 rounded-full bg-background/80 backdrop-blur-sm px-2 py-1 text-xs font-medium border border-border">
+                {p.distance}
+              </div>
+            </div>
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+                  {p.category}
+                </span>
+              </div>
+              <h3 className="text-lg font-semibold mb-1">{p.name}</h3>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> {p.address}
+              </p>
+              <Button size="sm" className="w-full mt-4 bg-primary/10 text-primary hover:bg-primary hover:text-white border-0">
+                Оставить отзыв
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 }
