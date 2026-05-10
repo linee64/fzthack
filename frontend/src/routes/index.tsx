@@ -115,8 +115,9 @@ function Dashboard() {
       });
       setOnboarded(true);
     } else {
-      // User is a regular client — keep current mode or default to client
-      setMode((prev) => prev === "business" ? "business" : "client");
+      // User is a regular client — always switch to client mode and skip onboarding
+      setMode("client");
+      setOnboarded(true);
     }
   };
 
@@ -434,20 +435,49 @@ function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void 
 
 function BusinessDashboard({ name }: { name: string }) {
   const [stats, setStats] = useState([
-    { icon: MessageSquare, label: "Отзывов за месяц", value: "1 248", delta: "+18%" },
-    { icon: Star, label: "Средний рейтинг", value: "4.8", delta: "+0.2" },
-    { icon: Gift, label: "Выдано бонусов", value: "932", delta: "+24%" },
+    { icon: MessageSquare, label: "Всего отзывов", value: "...", delta: "" },
+    { icon: Star, label: "Средний рейтинг", value: "...", delta: "" },
+    { icon: Gift, label: "Активных купонов", value: "...", delta: "" },
   ]);
 
-  const updateBonusStat = () => {
-    setStats((prev) =>
-      prev.map((s) =>
-        s.label === "Выдано бонусов"
-          ? { ...s, value: (parseInt(s.value.replace(/\s/g, "")) + 1).toLocaleString() }
-          : s,
-      ),
-    );
+  const fetchStats = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const bizId = session.user.id;
+
+    // 1. Total Reviews
+    const { count: reviewsCount } = await supabase
+      .from("reviews")
+      .select("*", { count: "exact", head: true })
+      .eq("business_id", bizId);
+
+    // 2. Average Rating
+    const { data: ratingData } = await supabase
+      .from("reviews")
+      .select("points")
+      .eq("business_id", bizId);
+    
+    const avgRating = ratingData?.length 
+      ? (ratingData.reduce((acc, r) => acc + (r.points > 200 ? 5 : r.points > 100 ? 4 : 3), 0) / ratingData.length).toFixed(1)
+      : "5.0";
+
+    // 3. Coupons count
+    const { count: couponsCount } = await supabase
+      .from("coupons")
+      .select("*", { count: "exact", head: true })
+      .eq("business_id", bizId);
+
+    setStats([
+      { icon: MessageSquare, label: "Всего отзывов", value: (reviewsCount || 0).toString(), delta: "+1" },
+      { icon: Star, label: "Средний рейтинг", value: avgRating, delta: "AI" },
+      { icon: Gift, label: "Активных купонов", value: (couponsCount || 0).toString(), delta: "" },
+    ]);
   };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   return (
     <div className="space-y-8">
@@ -478,7 +508,7 @@ function BusinessDashboard({ name }: { name: string }) {
         </TabsContent>
 
         <TabsContent value="bonuses" className="mt-6">
-          <BonusEditor onBonusAdded={updateBonusStat} />
+          <BonusEditor onBonusAdded={fetchStats} />
         </TabsContent>
 
         <TabsContent value="reviews" className="mt-6">
@@ -1185,54 +1215,87 @@ function QrApiPanel() {
 }
 
 function RecentReviews() {
-  const reviews = [
-    {
-      name: "Анна К.",
-      text: "Всё очень понравилось, сервис на высшем уровне!",
-      rating: 5,
-      bonus: "Скидка 10%",
-    },
-    {
-      name: "Игорь П.",
-      text: "Быстро, качественно, уютно. Зайду ещё.",
-      rating: 5,
-      bonus: "Приятный подарок",
-    },
-    {
-      name: "Мария С.",
-      text: "Хорошее обслуживание, но было немного шумно.",
-      rating: 4,
-      bonus: "Комплимент",
-    },
-  ];
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("*")
+        .eq("business_id", session.user.id)
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setReviews(data);
+      }
+      setLoading(false);
+    };
+
+    fetchReviews();
+  }, []);
+
+  if (loading) return <div className="p-8 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></div>;
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Последние отзывы</CardTitle>
         <CardDescription>AI уже оценил качество и начислил бонусы</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {reviews.map((r, i) => (
-          <div key={i} className="rounded-xl border border-border bg-muted/20 p-4">
-            <div className="flex items-center justify-between">
-              <div className="font-medium">{r.name}</div>
-              <div className="flex items-center gap-1 text-primary">
-                {Array.from({ length: r.rating }).map((_, j) => (
-                  <Star key={j} className="h-4 w-4 fill-current" />
-                ))}
+      <CardContent className="space-y-4">
+        {reviews.length > 0 ? (
+          reviews.map((review) => (
+            <div key={review.id} className="rounded-xl border border-border bg-muted/10 p-5 transition-all hover:bg-muted/20">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex gap-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <User2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm">{review.user_email?.split("@")[0] || "Гость"}</div>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-0.5">
+                        <Star className="h-2.5 w-2.5 fill-primary text-primary" />
+                        5.0
+                      </span>
+                      <span>•</span>
+                      <span>{new Date(review.created_at).toLocaleDateString("ru-RU")}</span>
+                      <span>•</span>
+                      <Badge variant="outline" className="text-[9px] h-4 px-1.5 uppercase border-primary/20 text-primary">
+                        {review.category}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-bold text-primary">+{review.points} pts</div>
+                </div>
               </div>
+              <p className="mt-3 text-sm leading-relaxed text-foreground/80">
+                {review.text}
+              </p>
+              {review.ai_analysis && (
+                <div className="mt-3 rounded-lg bg-primary/5 p-3 text-[11px] border border-primary/10">
+                  <div className="flex items-center gap-1.5 font-bold text-primary mb-1 uppercase tracking-tighter">
+                    <Sparkles className="h-3 w-3" /> AI Анализ:
+                  </div>
+                  <div className="text-muted-foreground italic line-clamp-2">
+                    {review.ai_analysis}
+                  </div>
+                </div>
+              )}
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">{r.text}</p>
-            <div className="mt-3 flex items-center gap-2">
-              <Badge className="bg-primary/15 text-primary border-0">
-                <Gift className="mr-1 h-3 w-3" /> {r.bonus}
-              </Badge>
-              <Badge variant="outline" className="text-xs">
-                <Zap className="mr-1 h-3 w-3" /> AI score 0.92
-              </Badge>
-            </div>
+          ))
+        ) : (
+          <div className="text-center py-12 border-2 border-dashed rounded-3xl border-border/40">
+            <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+            <p className="text-muted-foreground">Отзывов пока нет</p>
           </div>
-        ))}
+        )}
       </CardContent>
     </Card>
   );
