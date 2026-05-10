@@ -21,6 +21,13 @@ import {
   Check,
   Save,
   Settings,
+  Image as ImageIcon,
+  Upload,
+  X,
+  Paperclip,
+  Copy,
+  Users,
+  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -66,6 +73,9 @@ function Dashboard() {
   const [onboarded, setOnboarded] = useState(false);
   const [isClientLoggedIn, setIsClientLoggedIn] = useState(false);
   const [clientName, setClientName] = useState("Алексей");
+  const [clientEmail, setClientEmail] = useState("");
+  const [points, setPoints] = useState(1250);
+  const [myCoupons, setMyCoupons] = useState<any[]>([]);
   const [businessData, setBusinessData] = useState({
     name: "Coffee Lab",
     category: "cafe",
@@ -82,6 +92,7 @@ function Dashboard() {
             session.user.email?.split("@")[0] ||
             "Пользователь",
         );
+        setClientEmail(session.user.email || "");
       }
     });
 
@@ -96,6 +107,7 @@ function Dashboard() {
             session.user.email?.split("@")[0] ||
             "Пользователь",
         );
+        setClientEmail(session.user.email || "");
       } else {
         setIsClientLoggedIn(false);
       }
@@ -110,8 +122,9 @@ function Dashboard() {
     toast.success(`Добро пожаловать в Revvy, ${data.name}!`);
   };
 
-  const handleClientAuth = (name: string) => {
+  const handleClientAuth = (name: string, email?: string) => {
     setClientName(name);
+    if (email) setClientEmail(email);
     setIsClientLoggedIn(true);
     toast.success(`Добро пожаловать, ${name}!`);
   };
@@ -138,6 +151,7 @@ function Dashboard() {
         isClientLoggedIn={isClientLoggedIn}
         onboarded={onboarded}
         onLogout={handleLogout}
+        points={mode === "client" ? points : undefined}
       />
 
       <main className="mx-auto max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
@@ -148,7 +162,14 @@ function Dashboard() {
             <Onboarding onComplete={handleOnboarding} />
           )
         ) : isClientLoggedIn ? (
-          <ClientDashboard name={clientName} />
+          <ClientDashboard
+            name={clientName}
+            email={clientEmail}
+            points={points}
+            setPoints={setPoints}
+            myCoupons={myCoupons}
+            setMyCoupons={setMyCoupons}
+          />
         ) : (
           <ClientAuth onComplete={handleClientAuth} />
         )}
@@ -271,6 +292,7 @@ function Header({
   isClientLoggedIn,
   onboarded,
   onLogout,
+  points,
 }: {
   mode: Mode;
   setMode: (m: Mode) => void;
@@ -278,20 +300,30 @@ function Header({
   isClientLoggedIn?: boolean;
   onboarded?: boolean;
   onLogout: () => void;
+  points?: number;
 }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white p-1.5 shadow-[var(--shadow-glow)] overflow-hidden">
-            <img src="/logo.png" alt="Revvy Logo" className="w-full h-full object-contain" />
-          </div>
-          <div className="leading-tight">
-            <div className="text-lg font-semibold tracking-tight">Revvy</div>
-            <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
-              {mode === "business" ? "Business" : "Client"}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white p-1.5 shadow-[var(--shadow-glow)] overflow-hidden">
+              <img src="/logo.png" alt="Revvy Logo" className="w-full h-full object-contain" />
+            </div>
+            <div className="leading-tight">
+              <div className="text-lg font-semibold tracking-tight">Revvy</div>
+              <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
+                {mode === "business" ? "Business" : "Client"}
+              </div>
             </div>
           </div>
+
+          {mode === "client" && isClientLoggedIn && (
+            <div className="hidden sm:flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 border border-primary/20">
+              <Coins className="h-4 w-4 text-primary" />
+              <span className="text-sm font-bold text-primary">{points} pts</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -1266,12 +1298,100 @@ function ClientAuth({ onComplete }: { onComplete: (name: string) => void }) {
 
 /* ---------------- CLIENT ---------------- */
 
-function ClientDashboard({ name }: { name: string }) {
+function ClientDashboard({
+  name,
+  email,
+  points,
+  setPoints,
+  myCoupons,
+  setMyCoupons,
+}: {
+  name: string;
+  email: string;
+  points: number;
+  setPoints: React.Dispatch<React.SetStateAction<number>>;
+  myCoupons: any[];
+  setMyCoupons: React.Dispatch<React.SetStateAction<any[]>>;
+}) {
   const [clientStats, setClientStats] = useState([
+    { icon: Coins, label: "Баллов накоплено", value: points.toLocaleString(), delta: "+300" },
     { icon: MessageSquare, label: "Отзывов оставлено", value: "34", delta: "+3" },
-    { icon: Award, label: "Уровень", value: "Gold" },
     { icon: Gift, label: "Активных бонусов", value: "5" },
   ]);
+
+  useEffect(() => {
+    setClientStats((prev) =>
+      prev.map((s) => (s.label === "Баллов накоплено" ? { ...s, value: points.toLocaleString() } : s)),
+    );
+  }, [points]);
+
+  const [history, setHistory] = useState([
+    {
+      place: "Coffee Lab",
+      date: "12 мая 2026",
+      rating: 5,
+      text: "Отличное кофе и атмосфера!",
+      bonus: "Скидка 10%",
+    },
+  ]);
+
+  const handleAddReview = (
+    place: string,
+    rating: number,
+    text: string,
+    images: string[] = [],
+  ) => {
+    const earnedPoints = rating >= 4 ? 300 : 150;
+    const newReview = {
+      place,
+      date: new Date().toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+      rating,
+      text,
+      bonus: `${earnedPoints} баллов`,
+      images,
+    };
+    setHistory([newReview, ...history]);
+
+    const newPoints = points + earnedPoints;
+    setPoints(newPoints);
+
+    setClientStats((prev) =>
+      prev.map((s) => {
+        if (s.label === "Баллов накоплено") {
+          return { ...s, value: newPoints.toLocaleString(), delta: `+${earnedPoints}` };
+        }
+        if (s.label === "Отзывов оставлено") {
+          return { ...s, value: (parseInt(s.value) + 1).toString() };
+        }
+        return s;
+      }),
+    );
+    toast.success(`Отзыв успешно отправлен! Вам начислено ${earnedPoints} баллов.`);
+  };
+
+  const handleExchangePoints = (amount: number, couponName: string) => {
+    if (points >= amount) {
+      const newPoints = points - amount;
+      setPoints(newPoints);
+      setMyCoupons((prev) => [
+        ...prev,
+        {
+          name: couponName,
+          date: new Date().toLocaleDateString("ru-RU"),
+          code: Math.random().toString(36).toUpperCase().slice(2, 10),
+        },
+      ]);
+      toast.success(`Вы успешно обменяли баллы на «${couponName}»!`);
+      return true;
+    } else {
+      toast.error("Недостаточно баллов для обмена");
+      return false;
+    }
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -1300,6 +1420,9 @@ function ClientDashboard({ name }: { name: string }) {
           <TabsTrigger value="coupons">
             <Gift className="mr-1.5 h-4 w-4" /> Магазин талонов
           </TabsTrigger>
+          <TabsTrigger value="my-bonuses">
+            <Award className="mr-1.5 h-4 w-4" /> Мои купоны
+          </TabsTrigger>
           <TabsTrigger value="places">
             <MapPin className="mr-1.5 h-4 w-4" /> Заведения
           </TabsTrigger>
@@ -1309,18 +1432,66 @@ function ClientDashboard({ name }: { name: string }) {
         </TabsList>
 
         <TabsContent value="history" className="mt-6">
-          <ClientHistory history={[]} />
+          <ClientHistory history={history} />
         </TabsContent>
         <TabsContent value="coupons" className="mt-6">
-          <ClientCoupons />
+          <ClientCoupons points={points} onExchange={handleExchangePoints} />
+        </TabsContent>
+        <TabsContent value="my-bonuses" className="mt-6">
+          <MyCoupons coupons={myCoupons} />
         </TabsContent>
         <TabsContent value="places" className="mt-6">
-          <ClientPlaces places={[]} />
+          <ClientPlaces onLeaveReview={handleAddReview} />
         </TabsContent>
         <TabsContent value="profile" className="mt-6">
-          <ClientProfile name={name} />
+          <ClientProfile name={name} email={email} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function MyCoupons({ coupons }: { coupons: any[] }) {
+  if (coupons.length === 0) {
+    return (
+      <Card className="border-border/60 bg-card/40 backdrop-blur-md">
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted/20 text-muted-foreground mb-4">
+            <Award className="h-8 w-8" />
+          </div>
+          <CardTitle className="text-xl">У вас пока нет купонов</CardTitle>
+          <CardDescription className="max-w-xs mt-2">
+            Зарабатывайте баллы, оставляя отзывы, и обменивайте их на подарки в магазине талонов.
+          </CardDescription>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {coupons.map((c, i) => (
+        <Card key={i} className="overflow-hidden border-primary/20 bg-card/60 backdrop-blur-md">
+          <CardContent className="p-0">
+            <div className="flex">
+              <div className="flex flex-col items-center justify-center bg-primary/10 border-r border-dashed border-primary/30 px-6 py-6">
+                <QrCode className="h-10 w-10 text-primary" />
+                <span className="mt-2 text-[10px] font-bold uppercase text-primary/60">Scan</span>
+              </div>
+              <div className="flex-1 p-5">
+                <div className="text-xs text-muted-foreground mb-1">{c.date}</div>
+                <div className="text-lg font-bold tracking-tight">{c.name}</div>
+                <div className="mt-3 inline-flex items-center rounded-lg bg-background/80 px-3 py-1.5 border border-border">
+                  <span className="font-mono text-sm font-bold tracking-widest">{c.code}</span>
+                </div>
+                <p className="mt-2 text-[10px] text-muted-foreground italic">
+                  Покажите этот код сотруднику заведения
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -1328,7 +1499,14 @@ function ClientDashboard({ name }: { name: string }) {
 function ClientHistory({
   history,
 }: {
-  history: { place: string; date: string; rating: number; text: string; bonus: string }[];
+  history: {
+    place: string;
+    date: string;
+    rating: number;
+    text: string;
+    bonus: string;
+    images?: string[];
+  }[];
 }) {
   if (history.length === 0) {
     return (
@@ -1371,6 +1549,18 @@ function ClientHistory({
               </div>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{it.text}</p>
+            {it.images && it.images.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {it.images.map((img, idx) => (
+                  <div
+                    key={idx}
+                    className="h-16 w-16 rounded-lg border border-border overflow-hidden bg-muted"
+                  >
+                    <img src={img} alt="Review" className="h-full w-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
             <Badge className="mt-3 bg-primary/15 text-primary border-0">
               <Gift className="mr-1 h-3 w-3" /> {it.bonus}
             </Badge>
@@ -1381,91 +1571,358 @@ function ClientHistory({
   );
 }
 
-function ClientCoupons() {
+function ClientCoupons({
+  points,
+  onExchange,
+}: {
+  points: number;
+  onExchange: (amount: number, name: string) => boolean;
+}) {
   const coupons = [
     { name: "Скидка 10% на кофе", price: 500, description: "На любой кофе в Coffee Lab" },
     { name: "Бесплатный десерт", price: 800, description: "При заказе основного блюда" },
     { name: "Скидка 20% на стрижку", price: 1000, description: "В Barbershop K." },
   ];
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <Card className="border-border/60 bg-card/40 backdrop-blur-md">
         <CardHeader>
-          <CardTitle>Магазин талонов</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Gift className="h-5 w-5 text-primary" /> Магазин талонов
+          </CardTitle>
           <CardDescription>Обменяйте баллы на купоны и скидки</CardDescription>
         </CardHeader>
-      </Card>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {coupons.map((c, i) => (
-          <Card key={i} className="relative overflow-hidden border-primary/30">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
-            <CardContent className="relative p-5">
-              <Gift className="h-8 w-8 text-primary" />
-              <div className="mt-4 text-lg font-semibold">{c.name}</div>
-              <div className="text-sm text-muted-foreground">{c.description}</div>
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-sm font-medium">{c.price} баллов</span>
-                <Button
-                  size="sm"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  Обменять
-                </Button>
+        <CardContent>
+          <div className="flex items-center gap-3 rounded-2xl bg-primary/5 p-4 border border-primary/10">
+            <Coins className="h-6 w-6 text-primary" />
+            <div>
+              <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                Ваш баланс
               </div>
-            </CardContent>
-          </Card>
-        ))}
+              <div className="text-2xl font-bold text-primary">{points.toLocaleString()} pts</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {coupons.map((c, i) => {
+          const canAfford = points >= c.price;
+          return (
+            <Card
+              key={i}
+              className={`relative overflow-hidden transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 group ${
+                canAfford ? "border-primary/20 bg-card/60" : "border-border/40 bg-muted/20 opacity-80"
+              }`}
+            >
+              <div
+                className={`absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent transition-opacity group-hover:opacity-100 ${
+                  canAfford ? "opacity-40" : "opacity-0"
+                }`}
+              />
+              <CardContent className="relative p-6">
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-transform group-hover:scale-110 ${
+                    canAfford ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Gift className="h-6 w-6" />
+                </div>
+                <div className="mt-5 text-xl font-bold tracking-tight">{c.name}</div>
+                <div className="mt-1 text-sm text-muted-foreground/80 leading-relaxed">
+                  {c.description}
+                </div>
+                <div className="mt-8 flex items-center justify-between">
+                  <div className="flex items-baseline gap-1">
+                    <span
+                      className={`text-2xl font-bold ${canAfford ? "text-primary" : "text-muted-foreground"}`}
+                    >
+                      {c.price}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                      pts
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={!canAfford}
+                    onClick={() => onExchange(c.price, c.name)}
+                    className={`rounded-xl px-5 h-10 font-bold transition-all ${
+                      canAfford
+                        ? "bg-primary text-primary-foreground hover:shadow-lg hover:shadow-primary/20 active:scale-95"
+                        : "bg-muted text-muted-foreground grayscale"
+                    }`}
+                  >
+                    {canAfford ? "Обменять" : "Мало баллов"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function ClientProfile({ name }: { name: string }) {
+function ClientProfile({ name: initialName, email }: { name: string; email: string }) {
+  const [name, setName] = useState(initialName);
+  const [phone, setPhone] = useState("+7 (707) 123-45-67");
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [notifications, setNotifications] = useState({ push: true, email: false });
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatar(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSave = () => {
+    setIsEditing(false);
+    toast.success("Профиль успешно обновлен");
+  };
+
+  const copyReferral = () => {
+    navigator.clipboard.writeText(`https://revvy.kz/invite/${name.toLowerCase().replace(" ", "-")}`);
+    toast.success("Ссылка скопирована!");
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Профиль</CardTitle>
-        <CardDescription>Ваши личные данные</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary text-2xl font-semibold">
-            {name.charAt(0).toUpperCase()}
+    <div className="grid gap-6 lg:grid-cols-3">
+      <div className="lg:col-span-2 space-y-6">
+        <Card className="border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden">
+          <div className="h-24 bg-gradient-to-r from-primary/20 to-primary/5" />
+          <CardContent className="relative pt-0 px-6 pb-6">
+            <div className="flex items-end gap-4 -mt-12 mb-6">
+              <div className="relative group">
+                <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-card text-primary text-4xl font-bold border-4 border-background shadow-xl overflow-hidden">
+                  {avatar ? (
+                    <img src={avatar} alt="Avatar" className="h-full w-full object-cover" />
+                  ) : (
+                    name.charAt(0).toUpperCase()
+                  )}
+                </div>
+                {isEditing && (
+                  <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-3xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Upload className="h-6 w-6" />
+                    <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
+                  </label>
+                )}
+              </div>
+              <div className="pb-1">
+                <div className="text-2xl font-bold tracking-tight">{name}</div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary border-0 font-bold uppercase tracking-wider text-[10px]">
+                    Gold Member
+                  </Badge>
+                  <span>•</span>
+                  <span>Казахстан, Алматы</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Имя</Label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  readOnly={!isEditing}
+                  className={!isEditing ? "bg-muted/20 border-transparent" : "bg-background"}
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</Label>
+                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Заблокировано</span>
+                </div>
+                <Input
+                  value={email}
+                  readOnly
+                  className="bg-muted/30 border-transparent opacity-70 cursor-not-allowed"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Телефон</Label>
+                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Заблокировано</span>
+                </div>
+                <Input
+                  value={phone}
+                  readOnly
+                  className="bg-muted/30 border-transparent opacity-70 cursor-not-allowed"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Дата регистрации</Label>
+                <Input value="15 марта 2024" readOnly className="bg-muted/20 border-transparent opacity-60" />
+              </div>
+            </div>
+
+            <div className="mt-8 flex gap-3">
+              {isEditing ? (
+                <>
+                  <Button onClick={handleSave} className="flex-1 font-bold">Сохранить</Button>
+                  <Button variant="outline" onClick={() => setIsEditing(false)} className="flex-1 font-bold">Отмена</Button>
+                </>
+              ) : (
+                <Button variant="outline" className="w-full font-bold border-border/60 hover:bg-muted/30" onClick={() => setIsEditing(true)}>
+                  Редактировать профиль
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/50 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Интересы и предпочтения</CardTitle>
+            <CardDescription>Мы будем предлагать бонусы на основе ваших вкусов</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            {[
+              { label: "Кофе и десерты", icon: Gift },
+              { label: "Спорт и здоровье", icon: Zap },
+              { label: "Красота и уход", icon: Sparkles },
+              { label: "Рестораны", icon: MessageSquare },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-muted/20 border border-border/40">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-background border border-border">
+                    <item.icon className="h-4 w-4 text-primary" />
+                  </div>
+                  <span className="text-sm font-medium">{item.label}</span>
+                </div>
+                <Switch defaultChecked={i % 2 === 0} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-6">
+        <Card className="border-border/60 bg-primary/5 border-primary/20 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-3 opacity-10">
+            <Users className="h-24 w-24" />
           </div>
-          <div>
-            <div className="text-lg font-semibold">{name}</div>
-            <div className="text-sm text-muted-foreground">Клиент</div>
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Имя</Label>
-            <Input value={name} readOnly />
-          </div>
-          <div className="space-y-2">
-            <Label>Email</Label>
-            <Input value={`${name.toLowerCase()}@example.com`} readOnly />
-          </div>
-          <div className="space-y-2">
-            <Label>Телефон</Label>
-            <Input value="+7 (999) 123-45-67" readOnly />
-          </div>
-          <div className="space-y-2">
-            <Label>Дата регистрации</Label>
-            <Input value="15 марта 2024" readOnly />
-          </div>
-        </div>
-        <Button variant="outline" className="w-full">
-          Редактировать профиль
-        </Button>
-      </CardContent>
-    </Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Пригласи друга</CardTitle>
+            <CardDescription>Получите 500 баллов за каждого приведенного клиента</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={`revvy.kz/invite/${name.toLowerCase().replace(" ", "-")}`}
+                className="bg-background/50 text-xs font-mono"
+              />
+              <Button size="icon" variant="secondary" onClick={copyReferral}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex items-center justify-between text-xs font-medium">
+              <span className="text-muted-foreground">Приглашено друзей</span>
+              <span className="text-primary font-bold">12</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/50 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Настройки</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Push-уведомления</Label>
+                <p className="text-[10px] text-muted-foreground">О новых бонусах и скидках</p>
+              </div>
+              <Switch checked={notifications.push} onCheckedChange={(v) => setNotifications({...notifications, push: v})} />
+            </div>
+            <div className="flex items-center justify-between border-t border-border/40 pt-4">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Email рассылка</Label>
+                <p className="text-[10px] text-muted-foreground">Еженедельный дайджест</p>
+              </div>
+              <Switch checked={notifications.email} onCheckedChange={(v) => setNotifications({...notifications, email: v})} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/50 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Достижения</CardTitle>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                <Zap className="h-3.5 w-3.5" />
+                <span className="text-xs font-bold uppercase tracking-wider">Level 12</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                <span>Прогресс до 13 уровня</span>
+                <span>85%</span>
+              </div>
+              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-primary rounded-full w-[85%] shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {[
+                { label: "Критик", color: "bg-amber-500", desc: "Оставлено 10+ отзывов" },
+                { label: "Адепт", color: "bg-blue-500", desc: "Сделано 5 обменов" },
+                { label: "Первопроходец", color: "bg-emerald-500", desc: "Первый отзыв в новом месте" },
+              ].map((b, i) => (
+                <div key={i} className="group relative">
+                  <div className={`h-12 w-12 rounded-full ${b.color} flex items-center justify-center shadow-lg transform hover:scale-110 transition-transform cursor-help shadow-black/20`}>
+                    <Award className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-popover text-popover-foreground text-[10px] rounded border border-border opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-xl">
+                    <div className="font-bold">{b.label}</div>
+                    <div className="text-muted-foreground">{b.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-4 pt-2 border-t border-border/40">
+              <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Следующие цели</div>
+              {[
+                { label: "Постоянный гость", progress: 80, target: "10/12 визитов" },
+                { label: "Фотограф", progress: 45, target: "4/10 фото" },
+              ].map((goal, i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-medium">
+                    <span>{goal.label}</span>
+                    <span className="text-muted-foreground">{goal.target}</span>
+                  </div>
+                  <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary/40 rounded-full transition-all"
+                      style={{ width: `${goal.progress}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 function ClientPlaces({
-  places,
+  onLeaveReview,
 }: {
-  places: { name: string; category: string; address: string; distance: string }[];
+  onLeaveReview: (place: string, rating: number, text: string, images: string[]) => void;
 }) {
   const mockPlaces = [
     { name: "Coffee Lab", category: "Кафе", address: "ул. Абая, 12", distance: "200 м" },
@@ -1473,32 +1930,153 @@ function ClientPlaces({
     { name: "Fitness Pride", category: "Спорт", address: "ул. Сатпаева, 8", distance: "1.2 км" },
   ];
 
-  const displayPlaces = places.length > 0 ? places : mockPlaces;
+  const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
+  const [rating, setRating] = useState(5);
+  const [text, setText] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImages((prev) => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = () => {
+    if (selectedPlace) {
+      onLeaveReview(selectedPlace, rating, text, images);
+      setSelectedPlace(null);
+      setRating(5);
+      setText("");
+      setImages([]);
+    }
+  };
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {displayPlaces.map((p, i) => (
-        <Card key={i} className="group overflow-hidden transition-all hover:shadow-lg">
+      {mockPlaces.map((p, i) => (
+        <Card
+          key={i}
+          className="group overflow-hidden border-border/60 bg-card/50 transition-all hover:border-primary/40 hover:shadow-2xl hover:shadow-primary/5"
+        >
           <CardContent className="p-0">
-            <div className="h-32 bg-muted/30 relative flex items-center justify-center overflow-hidden">
-              <MapPin className="h-10 w-10 text-primary opacity-20 transition-transform group-hover:scale-110" />
-              <div className="absolute top-3 right-3 rounded-full bg-background/80 backdrop-blur-sm px-2 py-1 text-xs font-medium border border-border">
+            <div className="h-40 bg-muted/30 relative flex items-center justify-center overflow-hidden">
+              <MapPin className="h-12 w-12 text-primary opacity-20 transition-transform group-hover:scale-110" />
+              <div className="absolute top-4 right-4 rounded-full bg-background/80 backdrop-blur-md px-3 py-1 text-[10px] font-bold uppercase tracking-wider border border-border/50">
                 {p.distance}
               </div>
             </div>
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-primary uppercase tracking-[0.2em]">
                   {p.category}
                 </span>
               </div>
-              <h3 className="text-lg font-semibold mb-1">{p.name}</h3>
-              <p className="text-sm text-muted-foreground flex items-center gap-1">
-                <MapPin className="h-3 w-3" /> {p.address}
+              <h3 className="text-xl font-bold mb-1 tracking-tight">{p.name}</h3>
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5 opacity-80">
+                <MapPin className="h-3.5 w-3.5" /> {p.address}
               </p>
-              <Button size="sm" className="w-full mt-4 bg-primary/10 text-primary hover:bg-primary hover:text-white border-0">
-                Оставить отзыв
-              </Button>
+              <Dialog
+                open={selectedPlace === p.name}
+                onOpenChange={(open) => (open ? setSelectedPlace(p.name) : setSelectedPlace(null))}
+              >
+                <DialogTrigger asChild>
+                  <Button className="w-full mt-6 bg-primary/10 text-primary hover:bg-primary hover:text-white border-0 rounded-2xl h-11 font-semibold transition-all">
+                    Оставить отзыв
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px] border-border/60 bg-card/95 backdrop-blur-xl rounded-3xl">
+                  <DialogHeader className="text-center">
+                    <DialogTitle className="text-2xl font-bold tracking-tight">
+                      Отзыв для {p.name}
+                    </DialogTitle>
+                    <CardDescription className="text-base">
+                      Ваш отзыв поможет заведению стать лучше, а вам принесет бонусы.
+                    </CardDescription>
+                  </DialogHeader>
+                  <div className="space-y-6 py-6">
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Ваша оценка</Label>
+                      <div className="flex justify-center gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => setRating(star)}
+                            className="transition-transform active:scale-90"
+                          >
+                            <Star
+                              className={`h-8 w-8 ${
+                                rating >= star
+                                  ? "fill-primary text-primary"
+                                  : "text-muted-foreground/30"
+                              } transition-colors`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">Ваш комментарий</Label>
+                        {images.length < 3 && (
+                          <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors">
+                            <Paperclip className="h-3.5 w-3.5" />
+                            Прикрепить фото ({images.length}/3)
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              multiple
+                              onChange={handleImageUpload}
+                            />
+                          </label>
+                        )}
+                      </div>
+                      <Textarea
+                        placeholder="Что вам особенно понравилось?..."
+                        className="min-h-[120px] bg-background/50 border-border/60 focus:border-primary/50 text-base rounded-2xl p-4"
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                      />
+                      {images.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {images.map((img, idx) => (
+                            <div
+                              key={idx}
+                              className="relative h-14 w-14 rounded-lg border border-border overflow-hidden group"
+                            >
+                              <img src={img} alt="Preview" className="h-full w-full object-cover" />
+                              <button
+                                onClick={() => removeImage(idx)}
+                                className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      onClick={handleSubmit}
+                      className="w-full h-12 text-lg font-bold rounded-2xl shadow-lg shadow-primary/20"
+                      disabled={!text.trim()}
+                    >
+                      Отправить отзыв
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardContent>
         </Card>
