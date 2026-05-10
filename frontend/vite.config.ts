@@ -11,9 +11,4 @@ export default defineConfig({
     tanstackStart(),
     react(),
   ],
-  resolve: {
-    alias: {
-      "@": "/src",
-    },
-  },
 });
