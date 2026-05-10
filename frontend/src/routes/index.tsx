@@ -69,7 +69,9 @@ export const Route = createFileRoute("/")({
 type Mode = "business" | "client";
 
 function Dashboard() {
-  const [mode, setMode] = useState<Mode>("business");
+  const [mode, setMode] = useState<Mode>(
+    () => (localStorage.getItem("revvy_intended_mode") as Mode) || "business"
+  );
   const [onboarded, setOnboarded] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
@@ -115,22 +117,35 @@ function Dashboard() {
       });
       setOnboarded(true);
     } else {
-      // User is a regular client — always switch to client mode and skip onboarding
-      setMode("client");
-      setOnboarded(true);
+      // If no business profile exists, check what the user intended to be
+      const intendedMode = localStorage.getItem("revvy_intended_mode") || mode;
       
-      // Fetch user balance
-      const { data: balanceData } = await supabase
-        .from("user_balances")
-        .select("balance")
-        .eq("user_email", session.user.email)
-        .single();
-      
-      if (balanceData) {
-        setPoints(balanceData.balance || 0);
+      if (intendedMode === "business") {
+        // User wants to be a business but hasn't onboarded yet
+        setMode("business");
+        setOnboarded(false);
+      } else {
+        // User is a regular client — always switch to client mode and skip onboarding
+        setMode("client");
+        setOnboarded(true);
+        
+        // Fetch user balance
+        const { data: balanceData } = await supabase
+          .from("user_balances")
+          .select("balance")
+          .eq("user_email", session.user.email)
+          .single();
+        
+        if (balanceData) {
+          setPoints(balanceData.balance || 0);
+        }
       }
     }
   };
+
+  useEffect(() => {
+    localStorage.setItem("revvy_intended_mode", mode);
+  }, [mode]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: any) => {
@@ -145,7 +160,7 @@ function Dashboard() {
       } else {
         setIsLoggedIn(false);
         setOnboarded(false);
-        setMode("business");
+        // Don't reset mode here, let the user keep their choice
       }
     });
 
