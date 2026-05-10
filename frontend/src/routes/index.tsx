@@ -84,33 +84,56 @@ function Dashboard() {
     email: "",
   });
 
+  // Helper: check if logged in user is a business owner
+  const checkAndSetUserRole = async (session: any) => {
+    if (!session) return;
+
+    const userName =
+      session.user.user_metadata?.full_name ||
+      session.user.email?.split("@")[0] ||
+      "Пользователь";
+
+    setIsLoggedIn(true);
+    setClientName(userName);
+    setClientEmail(session.user.email || "");
+
+    // Check if this user has a business profile in Supabase
+    const { data: bizData } = await supabase
+      .from("businesses")
+      .select("id, name, category, city, email")
+      .eq("id", session.user.id)
+      .single();
+
+    if (bizData) {
+      // User is a business owner
+      setMode("business");
+      setBusinessData({
+        name: bizData.name || "",
+        category: bizData.category || "",
+        city: bizData.city || "",
+        email: bizData.email || "",
+      });
+      setOnboarded(true);
+    } else {
+      // User is a regular client — keep current mode or default to client
+      setMode((prev) => prev === "business" ? "business" : "client");
+    }
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: any) => {
-      if (session) {
-        setIsLoggedIn(true);
-        setMode(session.user.user_metadata?.role === "business" ? "business" : "client");
-        setClientName(
-          session.user.user_metadata?.full_name ||
-            session.user.email?.split("@")[0] ||
-            "Пользователь",
-        );
-        setClientEmail(session.user.email || "");
-      }
+      checkAndSetUserRole(session);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (session) {
-        setIsLoggedIn(true);
-        setClientName(
-          session.user.user_metadata?.full_name ||
-            session.user.email?.split("@")[0] ||
-            "Пользователь",
-        );
-        setClientEmail(session.user.email || "");
+        checkAndSetUserRole(session);
       } else {
         setIsLoggedIn(false);
+        setOnboarded(false);
+        setMode("business");
       }
     });
 
@@ -528,10 +551,46 @@ function PushEditor({ businessName }: { businessName: string }) {
 
   const generateKey = () => `rw_live_${Math.random().toString(36).slice(2, 11)}`;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      const key = generateKey();
+    try {
+      // 1. Get current user session to get business_id
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Вы не авторизованы");
+        return;
+      }
+      const businessId = session.user.id;
+
+      // 2. Save widget config and notification template to Supabase
+      const { error: updateError } = await supabase
+        .from("businesses")
+        .update({
+          widget_config: {
+            title: modalTitle,
+            description: modalText,
+            button_color: buttonColor,
+          },
+          notification_template: {
+            subject: title,
+            body: body,
+          },
+        })
+        .eq("id", businessId);
+
+      if (updateError) throw updateError;
+
+      // 3. Call backend to generate API key
+      const response = await fetch("http://localhost:8000/api/generate-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ business_id: businessId }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Ошибка генерации ключа");
+
+      const key = data.api_key;
       setApiKey(key);
       setKeys((prev) => [
         ...prev,
@@ -545,11 +604,14 @@ function PushEditor({ businessName }: { businessName: string }) {
           }),
         },
       ]);
-      setIsSaving(false);
       setIsSaved(true);
-      toast.success("Настройки успешно сохранены!");
+      toast.success("Настройки сохранены и API ключ сгенерирован!");
       setTimeout(() => setIsSaved(false), 2000);
-    }, 1200);
+    } catch (err: any) {
+      toast.error("Ошибка: " + (err.message || "Что-то пошло не так"));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCopyApiKey = () => {

@@ -2,7 +2,7 @@ import os
 import secrets
 import json
 import logging
-from datetime import datetime, UTC
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Query
@@ -111,7 +111,12 @@ def evaluate_review_with_ai(text: str, has_photo: bool) -> str:
 async def generate_key(req: GenerateKeyRequest):
     try:
         # Check if business exists
-        business = supabase.table("businesses").select("id, api_key").eq("id", str(req.business_id)).execute()
+        business = supabase.table("businesses").select("*").eq("id", str(req.business_id)).execute()
+        
+        # Log for debug as requested
+        logger.info(f"DEBUG: business_id={req.business_id}, result={business.data}")
+        print(f"DEBUG: Supabase result for {req.business_id}: {business.data}")
+
         if not business.data:
             raise HTTPException(status_code=404, detail="Business not found")
     except HTTPException:
@@ -132,13 +137,13 @@ async def generate_key(req: GenerateKeyRequest):
     
     # Save to api_keys table
     supabase.table("api_keys").insert({
-        "business_id": str(req.business_id),
+        "business_id": req.business_id,
         "key": new_key,
-        "created_at": datetime.now(UTC).isoformat()
+        "created_at": datetime.utcnow().isoformat()
     }).execute()
     
     # Update business record
-    supabase.table("businesses").update({"api_key": new_key}).eq("id", str(req.business_id)).execute()
+    supabase.table("businesses").update({"api_key": new_key}).eq("id", req.business_id).execute()
     
     return {"api_key": new_key}
 
@@ -157,7 +162,7 @@ async def notify(req: NotifyRequest):
     subject = template.get("subject", "Ваш заказ в {business_name}").replace("{business_name}", business["name"]).replace("{order_id}", req.order_id)
     body_text = template.get("body", "").replace("{business_name}", business["name"]).replace("{order_id}", req.order_id)
     
-    review_url = f"{FRONTEND_URL}/review/{req.order_id}?key={req.api_key}"
+    review_url = f"{FRONTEND_URL}/review/{req.order_id}?key={req.api_key}&email={req.user_email}"
     
     html_content = f"""
     <html>
