@@ -83,7 +83,7 @@ function ReviewPage() {
         body: JSON.stringify({
           api_key: apiKey,
           order_id: orderId,
-          user_email: userEmail || "guest@example.com",
+          user_email: userEmail || "",
           text: text,
           has_photo: false
         })

@@ -73,14 +73,14 @@ function Dashboard() {
   const [onboarded, setOnboarded] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
-  const [clientName, setClientName] = useState("Алексей");
+  const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
-  const [points, setPoints] = useState(1250);
+  const [points, setPoints] = useState(0);
   const [myCoupons, setMyCoupons] = useState<any[]>([]);
   const [businessData, setBusinessData] = useState({
-    name: "Coffee Lab",
-    category: "cafe",
-    city: "Алматы",
+    name: "",
+    category: "",
+    city: "",
     email: "",
   });
 
@@ -446,9 +446,9 @@ function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void 
 
 function BusinessDashboard({ name }: { name: string }) {
   const [stats, setStats] = useState([
-    { icon: MessageSquare, label: "Всего отзывов", value: "...", delta: "" },
-    { icon: Star, label: "Средний рейтинг", value: "...", delta: "" },
-    { icon: Gift, label: "Активных купонов", value: "...", delta: "" },
+    { icon: MessageSquare, label: "Всего отзывов", value: "0", delta: "" },
+    { icon: Star, label: "Средний рейтинг", value: "0.0", delta: "" },
+    { icon: Gift, label: "Активных купонов", value: "0", delta: "" },
   ]);
 
   const fetchStats = async () => {
@@ -480,8 +480,8 @@ function BusinessDashboard({ name }: { name: string }) {
       .eq("business_id", bizId);
 
     setStats([
-      { icon: MessageSquare, label: "Всего отзывов", value: (reviewsCount || 0).toString(), delta: "+1" },
-      { icon: Star, label: "Средний рейтинг", value: avgRating, delta: "AI" },
+      { icon: MessageSquare, label: "Всего отзывов", value: (reviewsCount || 0).toString(), delta: "" },
+      { icon: Star, label: "Средний рейтинг", value: avgRating, delta: "" },
       { icon: Gift, label: "Активных купонов", value: (couponsCount || 0).toString(), delta: "" },
     ]);
   };
@@ -564,7 +564,7 @@ function StatCard({
 
 function PushEditor({ businessName }: { businessName: string }) {
   const initialData = {
-    title: `Спасибо за визит в ${businessName}! ✨`,
+    title: businessName ? `Спасибо за визит в ${businessName}! ✨` : "Спасибо за визит! ✨",
     body: "Оставьте короткий отзыв и получите приятный бонус при следующем визите к нам 🎁",
     modalTitle: "Оставьте отзыв",
     modalText: "Поделитесь впечатлениями и получите бонус сразу после оценки",
@@ -580,9 +580,7 @@ function PushEditor({ businessName }: { businessName: string }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [keys, setKeys] = useState([
-    { name: "Основной ключ", key: "rw_live_3j9sdfk29", createdAt: "10 мая 2026" },
-  ]);
+  const [keys, setKeys] = useState<{name: string, key: string, createdAt: string}[]>([]);
 
   const buttonColors = [
     { value: "blue", label: "Синий", className: "bg-blue-600 text-white" },
@@ -1252,7 +1250,7 @@ function QrApiPanel() {
             {Array.from({ length: 64 }).map((_, i) => (
               <div
                 key={i}
-                className={`rounded-sm ${Math.random() > 0.5 ? "bg-foreground" : "bg-transparent"}`}
+                className="rounded-sm bg-muted-foreground/20"
               />
             ))}
           </div>
@@ -1269,14 +1267,14 @@ function QrApiPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-xl border border-border bg-muted/30 p-4 font-mono text-sm">
-            sk_live_••••••••••3f9a2c
+            sk_live_••••••••••••••••
           </div>
           <div className="flex gap-2">
             <Button variant="outline">Скопировать</Button>
             <Button variant="outline">Перевыпустить</Button>
           </div>
           <div className="rounded-xl border border-border bg-background/40 p-4 text-xs text-muted-foreground">
-            <span className="text-primary">POST</span> https://api.snapreview.io/v1/reviews
+            <span className="text-primary">POST</span> https://api.revieward.io/v1/reviews
           </div>
         </CardContent>
       </Card>
@@ -1339,7 +1337,7 @@ function RecentReviews() {
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
                       <span className="flex items-center gap-0.5">
                         <Star className="h-2.5 w-2.5 fill-primary text-primary" />
-                        5.0
+                        {review.points >= 200 ? "5.0" : review.points >= 100 ? "4.0" : "3.0"}
                       </span>
                       <span>•</span>
                       <span>{new Date(review.created_at).toLocaleDateString("ru-RU")}</span>
@@ -1578,9 +1576,9 @@ function ClientDashboard({
   setMyCoupons: React.Dispatch<React.SetStateAction<any[]>>;
 }) {
   const [clientStats, setClientStats] = useState([
-    { icon: Coins, label: "Баллов накоплено", value: points.toLocaleString(), delta: "+300" },
-    { icon: MessageSquare, label: "Отзывов оставлено", value: "34", delta: "+3" },
-    { icon: Gift, label: "Активных бонусов", value: "5" },
+    { icon: Coins, label: "Баллов накоплено", value: points.toLocaleString(), delta: "" },
+    { icon: MessageSquare, label: "Отзывов оставлено", value: "0", delta: "" },
+    { icon: Gift, label: "Активных бонусов", value: "0" },
   ]);
 
   useEffect(() => {
@@ -1874,11 +1872,7 @@ function ClientCoupons({
   points: number;
   onExchange: (amount: number, name: string) => boolean;
 }) {
-  const coupons = [
-    { name: "Скидка 10% на кофе", price: 500, description: "На любой кофе в Coffee Lab" },
-    { name: "Бесплатный десерт", price: 800, description: "При заказе основного блюда" },
-    { name: "Скидка 20% на стрижку", price: 1000, description: "В Barbershop K." },
-  ];
+  const coupons: any[] = [];
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <Card className="border-border/60 bg-card/40 backdrop-blur-md">
@@ -1962,10 +1956,10 @@ function ClientCoupons({
 
 function ClientProfile({ name: initialName, email }: { name: string; email: string }) {
   const [name, setName] = useState(initialName);
-  const [phone, setPhone] = useState("+7 (707) 123-45-67");
+  const [phone, setPhone] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [notifications, setNotifications] = useState({ push: true, email: false });
+  const [notifications, setNotifications] = useState({ push: true, email: true });
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1984,7 +1978,7 @@ function ClientProfile({ name: initialName, email }: { name: string; email: stri
   };
 
   const copyReferral = () => {
-    navigator.clipboard.writeText(`https://revvy.kz/invite/${name.toLowerCase().replace(" ", "-")}`);
+    navigator.clipboard.writeText(`https://revieward.io/invite/${name.toLowerCase().replace(" ", "-")}`);
     toast.success("Ссылка скопирована!");
   };
 
@@ -2014,10 +2008,10 @@ function ClientProfile({ name: initialName, email }: { name: string; email: stri
                 <div className="text-2xl font-bold tracking-tight">{name}</div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Badge variant="secondary" className="bg-primary/10 text-primary border-0 font-bold uppercase tracking-wider text-[10px]">
-                    Gold Member
+                    Client
                   </Badge>
                   <span>•</span>
-                  <span>Казахстан, Алматы</span>
+                  <span>Казахстан</span>
                 </div>
               </div>
             </div>
@@ -2056,7 +2050,7 @@ function ClientProfile({ name: initialName, email }: { name: string; email: stri
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Дата регистрации</Label>
-                <Input value="15 марта 2024" readOnly className="bg-muted/20 border-transparent opacity-60" />
+                <Input value={new Date().toLocaleDateString("ru-RU")} readOnly className="bg-muted/20 border-transparent opacity-60" />
               </div>
             </div>
 
@@ -2081,22 +2075,9 @@ function ClientProfile({ name: initialName, email }: { name: string; email: stri
             <CardDescription>Мы будем предлагать бонусы на основе ваших вкусов</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            {[
-              { label: "Кофе и десерты", icon: Gift },
-              { label: "Спорт и здоровье", icon: Zap },
-              { label: "Красота и уход", icon: Sparkles },
-              { label: "Рестораны", icon: MessageSquare },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-muted/20 border border-border/40">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-background border border-border">
-                    <item.icon className="h-4 w-4 text-primary" />
-                  </div>
-                  <span className="text-sm font-medium">{item.label}</span>
-                </div>
-                <Switch defaultChecked={i % 2 === 0} />
-              </div>
-            ))}
+            <div className="text-sm text-muted-foreground py-4 text-center col-span-2">
+              Настройте ваши предпочтения в личном кабинете
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -2123,7 +2104,7 @@ function ClientProfile({ name: initialName, email }: { name: string; email: stri
             </div>
             <div className="flex items-center justify-between text-xs font-medium">
               <span className="text-muted-foreground">Приглашено друзей</span>
-              <span className="text-primary font-bold">12</span>
+              <span className="text-primary font-bold">0</span>
             </div>
           </CardContent>
         </Card>
@@ -2161,53 +2142,9 @@ function ClientProfile({ name: initialName, email }: { name: string; email: stri
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                <span>Прогресс до 13 уровня</span>
-                <span>85%</span>
-              </div>
-              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full w-[85%] shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              {[
-                { label: "Критик", color: "bg-amber-500", desc: "Оставлено 10+ отзывов" },
-                { label: "Адепт", color: "bg-blue-500", desc: "Сделано 5 обменов" },
-                { label: "Первопроходец", color: "bg-emerald-500", desc: "Первый отзыв в новом месте" },
-              ].map((b, i) => (
-                <div key={i} className="group relative">
-                  <div className={`h-12 w-12 rounded-full ${b.color} flex items-center justify-center shadow-lg transform hover:scale-110 transition-transform cursor-help shadow-black/20`}>
-                    <Award className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-popover text-popover-foreground text-[10px] rounded border border-border opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-xl">
-                    <div className="font-bold">{b.label}</div>
-                    <div className="text-muted-foreground">{b.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-4 pt-2 border-t border-border/40">
-              <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Следующие цели</div>
-              {[
-                { label: "Постоянный гость", progress: 80, target: "10/12 визитов" },
-                { label: "Фотограф", progress: 45, target: "4/10 фото" },
-              ].map((goal, i) => (
-                <div key={i} className="space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-medium">
-                    <span>{goal.label}</span>
-                    <span className="text-muted-foreground">{goal.target}</span>
-                  </div>
-                  <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary/40 rounded-full transition-all"
-                      style={{ width: `${goal.progress}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+            <div className="text-center py-8 text-muted-foreground">
+              <Award className="h-12 w-12 mx-auto mb-4 opacity-20" />
+              <p>Выполняйте задания, чтобы получить достижения</p>
             </div>
           </CardContent>
         </Card>
@@ -2220,11 +2157,7 @@ function ClientPlaces({
 }: {
   onLeaveReview: (place: string, rating: number, text: string, images: string[]) => void;
 }) {
-  const mockPlaces = [
-    { name: "Coffee Lab", category: "Кафе", address: "ул. Абая, 12", distance: "200 м" },
-    { name: "Barbershop K", category: "Красота", address: "пр. Достык, 45", distance: "450 м" },
-    { name: "Fitness Pride", category: "Спорт", address: "ул. Сатпаева, 8", distance: "1.2 км" },
-  ];
+  const mockPlaces: any[] = [];
 
   const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
   const [rating, setRating] = useState(5);
