@@ -4,14 +4,14 @@
   "installCommand": "cd frontend && npm install",
   "framework": null,
   "functions": {
-    "api/server.js": {
+    "api/index.js": {
       "includeFiles": "frontend/dist/**"
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/api/server"
+      "destination": "/api/index"
     }
   ]
 }
