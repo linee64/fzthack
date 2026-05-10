@@ -16,15 +16,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 
+import { z } from "zod";
+
+const reviewSearchSchema = z.object({
+  key: z.string().optional(),
+  email: z.string().optional(),
+});
+
 export const Route = createFileRoute("/review/$orderId")({
+  validateSearch: (search) => reviewSearchSchema.parse(search),
   component: ReviewPage,
 });
 
 function ReviewPage() {
   const { orderId } = Route.useParams();
-  const search = useSearch({ from: "/review/$orderId" }) as { key?: string; email?: string };
-  const apiKey = search.key;
-  const userEmail = search.email;
+  const { key: apiKey, email: userEmail } = Route.useSearch();
 
   const [step, setStep] = useState<"confirm" | "form" | "success">("confirm");
   const [config, setConfig] = useState<any>(null);
