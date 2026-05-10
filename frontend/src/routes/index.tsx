@@ -71,7 +71,8 @@ type Mode = "business" | "client";
 function Dashboard() {
   const [mode, setMode] = useState<Mode>("business");
   const [onboarded, setOnboarded] = useState(false);
-  const [isClientLoggedIn, setIsClientLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [clientName, setClientName] = useState("Алексей");
   const [clientEmail, setClientEmail] = useState("");
   const [points, setPoints] = useState(1250);
@@ -80,13 +81,14 @@ function Dashboard() {
     name: "Coffee Lab",
     category: "cafe",
     city: "Алматы",
+    email: "",
   });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: any) => {
       if (session) {
-        setIsClientLoggedIn(true);
-        setMode("client");
+        setIsLoggedIn(true);
+        setMode(session.user.user_metadata?.role === "business" ? "business" : "client");
         setClientName(
           session.user.user_metadata?.full_name ||
             session.user.email?.split("@")[0] ||
@@ -100,8 +102,7 @@ function Dashboard() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (session) {
-        setIsClientLoggedIn(true);
-        setMode("client");
+        setIsLoggedIn(true);
         setClientName(
           session.user.user_metadata?.full_name ||
             session.user.email?.split("@")[0] ||
@@ -109,29 +110,50 @@ function Dashboard() {
         );
         setClientEmail(session.user.email || "");
       } else {
-        setIsClientLoggedIn(false);
+        setIsLoggedIn(false);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleOnboarding = (data: { name: string; category: string; city: string }) => {
-    setBusinessData(data);
-    setOnboarded(true);
-    toast.success(`Добро пожаловать в Revvy, ${data.name}!`);
+  const handleOnboarding = async (data: { name: string; category: string; city: string; email: string }) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        const { error } = await supabase
+          .from("businesses")
+          .upsert({
+            id: session.user.id,
+            name: data.name,
+            email: data.email,
+            category: data.category,
+            city: data.city,
+          });
+
+        if (error) throw error;
+      }
+
+      setBusinessData(data);
+      setOnboarded(true);
+      toast.success(`Добро пожаловать в Revvy, ${data.name}!`);
+    } catch (error: any) {
+      console.error("Error saving business profile:", error);
+      toast.error("Не удалось сохранить профиль: " + error.message);
+    }
   };
 
   const handleClientAuth = (name: string, email?: string) => {
     setClientName(name);
     if (email) setClientEmail(email);
-    setIsClientLoggedIn(true);
+    setIsLoggedIn(true);
     toast.success(`Добро пожаловать, ${name}!`);
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setIsClientLoggedIn(false);
+    setIsLoggedIn(false);
     setOnboarded(false);
     setMode("business");
     toast.success("Вы вышли из системы");
@@ -147,8 +169,8 @@ function Dashboard() {
       <Header
         mode={mode}
         setMode={setMode}
-        showModeToggle={!onboarded && !isClientLoggedIn}
-        isClientLoggedIn={isClientLoggedIn}
+        showModeToggle={!onboarded && !isLoggedIn}
+        isClientLoggedIn={isLoggedIn}
         onboarded={onboarded}
         onLogout={handleLogout}
         points={mode === "client" ? points : undefined}
@@ -156,12 +178,14 @@ function Dashboard() {
 
       <main className="mx-auto max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
         {mode === "business" ? (
-          onboarded ? (
+          !isLoggedIn ? (
+            <ClientAuth onComplete={handleClientAuth} />
+          ) : onboarded ? (
             <BusinessDashboard name={businessData.name} />
           ) : (
             <Onboarding onComplete={handleOnboarding} />
           )
-        ) : isClientLoggedIn ? (
+        ) : isLoggedIn ? (
           <ClientDashboard
             name={clientName}
             email={clientEmail}
@@ -222,9 +246,9 @@ function Footer() {
 function Onboarding({
   onComplete,
 }: {
-  onComplete: (data: { name: string; category: string; city: string }) => void;
+  onComplete: (data: { name: string; category: string; city: string; email: string }) => void;
 }) {
-  const [data, setData] = useState({ name: "", category: "", city: "" });
+  const [data, setData] = useState({ name: "", category: "", city: "", email: "" });
 
   return (
     <div className="flex min-h-[calc(100vh-200px)] items-center justify-center p-4">
@@ -245,6 +269,16 @@ function Onboarding({
               placeholder="Напр: Coffee Lab"
               value={data.name}
               onChange={(e) => setData({ ...data, name: e.target.value })}
+              className="h-12 bg-background/50 border-border/60 focus:border-primary/50 transition-all text-base"
+            />
+          </div>
+          <div className="space-y-2.5">
+            <Label className="text-sm font-medium">Email компании</Label>
+            <Input
+              type="email"
+              placeholder="biz@example.com"
+              value={data.email}
+              onChange={(e) => setData({ ...data, email: e.target.value })}
               className="h-12 bg-background/50 border-border/60 focus:border-primary/50 transition-all text-base"
             />
           </div>
@@ -275,7 +309,7 @@ function Onboarding({
           <Button
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 mt-6 h-12 text-lg font-semibold shadow-[var(--shadow-glow)] transition-all active:scale-[0.98]"
             onClick={() => onComplete(data)}
-            disabled={!data.name || !data.category}
+            disabled={!data.name || !data.category || !data.email}
           >
             Создать профиль
           </Button>
@@ -1149,6 +1183,7 @@ function ClientAuth({ onComplete }: { onComplete: (name: string) => void }) {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const handleEmailAuth = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1161,10 +1196,8 @@ function ClientAuth({ onComplete }: { onComplete: (name: string) => void }) {
           password,
         });
         if (error) throw error;
-        toast.success("Регистрация успешна! Проверьте email для подтверждения.");
-        if (data.user) {
-          onComplete(data.user.email?.split("@")[0] || "Пользователь");
-        }
+        setShowConfirmation(true);
+        toast.success("Регистрация успешна! Проверьте email.");
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
@@ -1199,6 +1232,33 @@ function ClientAuth({ onComplete }: { onComplete: (name: string) => void }) {
     }
   };
 
+  if (showConfirmation) {
+    return (
+      <div className="flex min-h-[calc(100vh-200px)] items-center justify-center p-4">
+        <Card className="w-full max-w-md border-border/40 bg-card/40 backdrop-blur-3xl shadow-2xl animate-in fade-in zoom-in-95 duration-700">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary animate-bounce-subtle">
+              <Bell className="h-10 w-10" />
+            </div>
+            <CardTitle className="text-3xl font-bold tracking-tight">Проверьте почту</CardTitle>
+            <CardDescription className="text-base mt-4 px-4">
+              Мы отправили ссылку для подтверждения на <strong>{email}</strong>. 
+              Пожалуйста, перейдите по ней, чтобы активировать аккаунт.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4 pb-8 flex flex-col gap-4">
+            <Button variant="outline" className="h-12" onClick={() => setShowConfirmation(false)}>
+              Вернуться ко входу
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              Не получили письмо? Проверьте папку Спам.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-200px)] items-center justify-center p-4">
       <Card className="w-full max-w-md border-border/40 bg-card/40 backdrop-blur-3xl shadow-2xl animate-in fade-in zoom-in-95 duration-700">
@@ -1210,7 +1270,7 @@ function ClientAuth({ onComplete }: { onComplete: (name: string) => void }) {
             {isSignUp ? "Регистрация в Revvy" : "Вход в Revvy"}
           </CardTitle>
           <CardDescription className="text-base mt-2">
-            Войдите или создайте аккаунт для продолжения
+            {isSignUp ? "Создайте аккаунт для вашего бизнеса" : "Войдите для управления вашим бизнесом"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-2">

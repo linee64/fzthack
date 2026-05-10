@@ -1,5 +1,9 @@
 fastapi
 uvicorn
+pydantic
 supabase
+resend
+google-generativeai
 python-dotenv
-pydantic-settings
+httpx
+python-multipart
