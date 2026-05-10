@@ -42,6 +42,8 @@ function ReviewPage() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<any>(null);
 
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
   useEffect(() => {
     if (!apiKey) {
       toast.error("Отсутствует ключ доступа");
@@ -49,9 +51,11 @@ function ReviewPage() {
       return;
     }
 
-    fetch(`http://localhost:8000/api/widget-config?api_key=${apiKey}`)
+    console.log(`Fetching config from ${API_URL}/api/widget-config?api_key=${apiKey}`);
+    
+    fetch(`${API_URL}/api/widget-config?api_key=${apiKey}`)
       .then(res => {
-        if (!res.ok) throw new Error("Не удалось загрузить настройки");
+        if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
         return res.json();
       })
       .then(data => {
@@ -59,11 +63,11 @@ function ReviewPage() {
         setLoading(false);
       })
       .catch(err => {
-        console.error(err);
-        toast.error("Ошибка загрузки данных заведения");
+        console.error("Fetch error:", err);
+        toast.error("Ошибка загрузки данных. Проверьте соединение с сервером.");
         setLoading(false);
       });
-  }, [apiKey]);
+  }, [apiKey, API_URL]);
 
   const handleSubmit = async () => {
     if (!text.trim()) {
@@ -73,7 +77,7 @@ function ReviewPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("http://localhost:8000/api/review", {
+      const res = await fetch(`${API_URL}/api/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

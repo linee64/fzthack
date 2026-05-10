@@ -118,6 +118,17 @@ function Dashboard() {
       // User is a regular client — always switch to client mode and skip onboarding
       setMode("client");
       setOnboarded(true);
+      
+      // Fetch user balance
+      const { data: balanceData } = await supabase
+        .from("user_balances")
+        .select("balance")
+        .eq("user_email", session.user.email)
+        .single();
+      
+      if (balanceData) {
+        setPoints(balanceData.balance || 0);
+      }
     }
   };
 
@@ -957,6 +968,54 @@ function BonusEditor({ onBonusAdded }: { onBonusAdded?: () => void }) {
     medium: 150,
     detailed: 300,
   });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchPoints = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data } = await supabase
+        .from("businesses")
+        .select("points_weak, points_medium, points_detailed")
+        .eq("id", session.user.id)
+        .single();
+      
+      if (data) {
+        setPointsPerReviewType({
+          poor: data.points_weak || 50,
+          medium: data.points_medium || 150,
+          detailed: data.points_detailed || 300,
+        });
+      }
+    };
+    fetchPoints();
+  }, []);
+
+  const handleSavePoints = async () => {
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { error } = await supabase
+        .from("businesses")
+        .update({
+          points_weak: pointsPerReviewType.poor,
+          points_medium: pointsPerReviewType.medium,
+          points_detailed: pointsPerReviewType.detailed,
+        })
+        .eq("id", session.user.id);
+      
+      if (error) throw error;
+      toast.success("Настройки баллов сохранены!");
+      onBonusAdded?.();
+    } catch (err: any) {
+      toast.error("Ошибка сохранения: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const [coupons, setCoupons] = useState([] as { id: number; name: string; pointsPrice: number }[]);
 
@@ -1061,6 +1120,17 @@ function BonusEditor({ onBonusAdded }: { onBonusAdded?: () => void }) {
             </Card>
           );
         })}
+      </div>
+
+      <div className="flex justify-end mt-4">
+        <Button 
+          onClick={handleSavePoints} 
+          disabled={saving}
+          className="bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
+        >
+          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          Сохранить настройки баллов
+        </Button>
       </div>
 
       {/* Coupons Section */}
@@ -1218,23 +1288,27 @@ function RecentReviews() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchReviews = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { data, error } = await supabase
-        .from("reviews")
-        .select("*")
-        .eq("business_id", session.user.id)
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        setReviews(data);
-      }
+  const fetchReviews = async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
       setLoading(false);
-    };
+      return;
+    }
 
+    const { data, error } = await supabase
+      .from("reviews")
+      .select("*")
+      .eq("business_id", session.user.id)
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setReviews(data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchReviews();
   }, []);
 
@@ -1242,9 +1316,14 @@ function RecentReviews() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Последние отзывы</CardTitle>
-        <CardDescription>AI уже оценил качество и начислил бонусы</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>Последние отзывы</CardTitle>
+          <CardDescription>AI уже оценил качество и начислил бонусы</CardDescription>
+        </div>
+        <Button variant="ghost" size="icon" onClick={() => fetchReviews()} disabled={loading}>
+          <Loader2 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {reviews.length > 0 ? (
@@ -1510,15 +1589,46 @@ function ClientDashboard({
     );
   }, [points]);
 
-  const [history, setHistory] = useState([
-    {
-      place: "Coffee Lab",
-      date: "12 мая 2026",
-      rating: 5,
-      text: "Отличное кофе и атмосфера!",
-      bonus: "Скидка 10%",
-    },
-  ]);
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchClientData = async () => {
+    if (!email) return;
+    setLoading(true);
+
+    // 1. Fetch History
+    const { data: revs, error: revErr } = await supabase
+      .from("reviews")
+      .select("*")
+      .eq("user_email", email)
+      .order("created_at", { ascending: false });
+
+    if (!revErr && revs) {
+      setHistory(revs.map(r => ({
+        place: "Отзыв в заведении",
+        date: new Date(r.created_at).toLocaleDateString("ru-RU", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+        rating: 5,
+        text: r.text,
+        bonus: `+${r.points} pts`
+      })));
+
+      // 2. Update Stats
+      setClientStats(prev => prev.map(s => {
+        if (s.label === "Отзывов оставлено") return { ...s, value: revs.length.toString() };
+        if (s.label === "Баллов накоплено" && revs.length > 0) return { ...s, delta: `+${revs[0].points}` };
+        return s;
+      }));
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchClientData();
+  }, [email]);
 
   const handleAddReview = (
     place: string,
@@ -1526,6 +1636,7 @@ function ClientDashboard({
     text: string,
     images: string[] = [],
   ) => {
+    // This is for local-only reviews (manual add from UI), but we mostly use API
     const earnedPoints = rating >= 4 ? 300 : 150;
     const newReview = {
       place,
@@ -1724,8 +1835,8 @@ function ClientHistory({
           >
             <div className="flex items-center justify-between">
               <div>
-                <div className="font-medium">{it.place}</div>
-                <div className="text-xs text-muted-foreground">{it.date}</div>
+                <div className="font-medium text-primary">Отзыв в заведении</div>
+                <div className="text-[10px] text-muted-foreground">{it.date}</div>
               </div>
               <div className="flex items-center gap-1 text-primary">
                 {Array.from({ length: it.rating }).map((_, j) => (

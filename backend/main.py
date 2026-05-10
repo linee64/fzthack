@@ -227,12 +227,14 @@ async def submit_review(req: ReviewRequest):
     category = evaluate_review_with_ai(req.text, req.has_photo)
     
     # Determine points
+    logger.info(f"Business config: {business}")
     points_map = {
         "слабый": business.get("points_weak", 10),
         "средний": business.get("points_medium", 25),
         "подробный": business.get("points_detailed", 50)
     }
     points = points_map.get(category, 10)
+    logger.info(f"Category: {category}, Points awarded: {points}")
     
     # Save review
     supabase.table("reviews").insert({
