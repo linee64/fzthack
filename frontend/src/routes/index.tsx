@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { supabase } from "../lib/supabase";
+import { supabase } from "@/lib/supabase";
 import {
   Building2,
   User2,
