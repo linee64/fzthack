@@ -9,16 +9,19 @@ import { dirname, resolve } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const srcPath = resolve(__dirname, "src");
+
 export default defineConfig({
   plugins: [
-    tsconfigPaths(),
     tailwindcss(),
     tanstackStart(),
     react(),
+    tsconfigPaths(),
   ],
   resolve: {
     alias: {
-      "@": resolve(__dirname, "src"),
+      "@": srcPath,
     },
+    extensions: [".ts", ".tsx", ".mjs", ".js", ".jsx", ".json"],
   },
 });
