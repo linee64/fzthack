@@ -134,7 +134,7 @@ function Dashboard() {
           .from("user_balances")
           .select("balance")
           .eq("user_email", session.user.email)
-          .single();
+          .maybeSingle();
         
         if (balanceData) {
           setPoints(balanceData.balance || 0);
@@ -992,7 +992,7 @@ function BonusEditor({ onBonusAdded }: { onBonusAdded?: () => void }) {
         .from("businesses")
         .select("points_weak, points_medium, points_detailed")
         .eq("id", session.user.id)
-        .single();
+        .maybeSingle();
       
       if (data) {
         setPointsPerReviewType({
@@ -1632,9 +1632,15 @@ function ClientDashboard({
       // 2. Update Stats
       setClientStats(prev => prev.map(s => {
         if (s.label === "Отзывов оставлено") return { ...s, value: revs.length.toString() };
-        if (s.label === "Баллов накоплено" && revs.length > 0) return { ...s, delta: `+${revs[0].points}` };
+        if (s.label === "Баллов накоплено") {
+          return { ...s, delta: revs.length > 0 ? `+${revs[0].points}` : "" };
+        }
         return s;
       }));
+
+      // 3. Refetch balance
+      const { data: bal } = await supabase.from("user_balances").select("balance").eq("user_email", email).maybeSingle();
+      if (bal) setPoints(bal.balance || 0);
     }
     setLoading(false);
   };

@@ -2,7 +2,7 @@ import os
 import secrets
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Query
@@ -137,13 +137,13 @@ async def generate_key(req: GenerateKeyRequest):
     
     # Save to api_keys table
     supabase.table("api_keys").insert({
-        "business_id": req.business_id,
+        "business_id": str(req.business_id),
         "key": new_key,
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }).execute()
     
     # Update business record
-    supabase.table("businesses").update({"api_key": new_key}).eq("id", req.business_id).execute()
+    supabase.table("businesses").update({"api_key": new_key}).eq("id", str(req.business_id)).execute()
     
     return {"api_key": new_key}
 
@@ -199,7 +199,7 @@ async def notify(req: NotifyRequest):
         "business_id": business["id"],
         "user_email": req.user_email,
         "order_id": req.order_id,
-        "sent_at": datetime.utcnow().isoformat()
+        "sent_at": datetime.now(timezone.utc).isoformat()
     }).execute()
     
     return {"success": True, "message": f"Email отправлен на {req.user_email}"}
@@ -238,13 +238,13 @@ async def submit_review(req: ReviewRequest):
     
     # Save review
     supabase.table("reviews").insert({
-        "business_id": business["id"],
+        "business_id": str(business["id"]),
         "user_email": req.user_email,
         "order_id": req.order_id,
         "text": req.text,
         "category": category,
         "points": points,
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }).execute()
     
     # Update user balance
@@ -261,9 +261,9 @@ async def submit_review(req: ReviewRequest):
     coupon_code = f"REV-{secrets.token_hex(4).upper()}"
     supabase.table("coupons").insert({
         "code": coupon_code,
-        "business_id": business["id"],
+        "business_id": str(business["id"]),
         "user_email": req.user_email,
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }).execute()
     
     return {
@@ -280,7 +280,7 @@ async def get_reviews(api_key: str = Query(...)):
     if not business:
         raise HTTPException(status_code=401, detail="Invalid API key")
     
-    reviews = supabase.table("reviews").select("*").eq("business_id", business["id"]).order("created_at", desc=True).execute()
+    reviews = supabase.table("reviews").select("*").eq("business_id", str(business["id"])).order("created_at", desc=True).execute()
     return reviews.data
 
 if __name__ == "__main__":
