@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "../lib/supabase";
 import {
   Building2,
   User2,
@@ -83,7 +83,7 @@ function Dashboard() {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
       if (session) {
         setIsClientLoggedIn(true);
         setMode("client");
@@ -98,7 +98,7 @@ function Dashboard() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (session) {
         setIsClientLoggedIn(true);
         setMode("client");
@@ -441,7 +441,7 @@ function StatCard({
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
-  delta: string;
+  delta?: string;
 }) {
   return (
     <Card className="relative overflow-hidden border-border/70 transition-all hover:border-primary/30 hover:shadow-lg group">
@@ -1408,7 +1408,7 @@ function ClientDashboard({
 
       <section className="grid gap-4 sm:grid-cols-3">
         {clientStats.map((s, i) => (
-          <StatCard key={i} {...s} />
+          <StatCard key={i} icon={s.icon} label={s.label} value={s.value} delta={s.delta} />
         ))}
       </section>
 
